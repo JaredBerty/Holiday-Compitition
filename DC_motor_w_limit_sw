@@ -1,0 +1,72 @@
+#include <Bounce2.h>
+// Define pins
+int limitSW = 4;    // limit switch
+int enableB = 6;    // L298N ENB
+int pinB1 = 7;      // L298N IN3
+int pinB2 = 8;      // L298N IN4
+bool buttonState; // boolean that will flip when limit switch is touched
+
+//Bounce object
+Bounce bounceA = Bounce(); // initialize first bounce object for motor control
+Bounce bounceB = Bounce(); // initilze second bounce object for led control
+
+void setup() {
+
+  // setup for motor
+  pinMode(enableB, OUTPUT);
+  pinMode(pinB1, OUTPUT);
+  pinMode(pinB2, OUTPUT);
+  
+  // setup for bounce
+  Serial.begin(9600); // for troubleshooting
+  bounceA.attach(limitSW, INPUT_PULLUP); //attach the limit switch to the bounce object
+  bounceA.interval(25); //polling interval for the bounce object
+
+  //bounceB.attach(); // attach a limit sw here for LEDs
+  //bounceB.interval(25);
+
+  digitalWrite(enableB, HIGH); // motor on
+}
+
+void loop()
+{
+  bounceA.update(); // 
+  //bounceB.update();
+
+  if (bounceA.fell()){
+    buttonState = !buttonState;
+    Serial.println("Button Pressed");
+    if (buttonState == true){
+      Serial.println(buttonState);
+      Serial.println("Bounce says - CW");
+      motorControl();
+    }
+    else if (buttonState == false){
+      Serial.println(buttonState);
+      Serial.println("Bounce says - CCW");
+      motorControl();
+    }
+    else {
+      Serial.print("bounce says - borken");
+    }   
+  }
+}
+
+void motorControl() {
+  
+  if (buttonState == true) {
+    Serial.println(buttonState);
+    Serial.println("Motor says - CW");
+    digitalWrite(pinB1, HIGH);
+    digitalWrite(pinB2, LOW);
+  }
+  else if (buttonState == false){
+    Serial.println(buttonState);
+    Serial.println("Motor says - CCW");
+    digitalWrite(pinB1, LOW);
+    digitalWrite(pinB2, HIGH);
+  }
+  else{
+    Serial.println("Motor says - borken");
+  }
+}
