@@ -1,50 +1,98 @@
+#include <FastLED.h>
 #include <Bounce2.h>
-// Define pins
-int limitSW = 4;    // limit switch
+
+// Motor stuff
+int limitSW = 5;    // limit switch
 int enableB = 6;    // L298N ENB
 int pinB1 = 7;      // L298N IN3
 int pinB2 = 8;      // L298N IN4
 bool buttonState; // boolean that will flip when limit switch is touched
 
-//Bounce object
+// LED stuff
+#define NUM_LEDS 150
+#define LED_PIN 16
+#define POT_PIN A3
+#define VOLTS 5
+#define MAX_MILLIAMPS 500
+int limitSW1 = 2;
+int limitSW2 = 3;
+int limitSW3 = 4;
+
+
+//Bounce objects
 Bounce bounceA = Bounce(); // initialize first bounce object for motor control
-Bounce bounceB = Bounce(); // initilze second bounce object for led control
+Bounce radarbounce1 = Bounce(); // bounce object for radar track 1
+Bounce radarbounce2 = Bounce(); // bounce object for radar track 2
+Bounce radarbounce3 = Bounce(); // bounce object for radar track 3
+
+// LED variables
+CRGBArray<NUM_LEDS> leds;
+CRGB colorOne = CRGB::White;
+CRGB colorTwo = (0,0,0);
+CRGB colorThree = (0,0,0);
+CRGB colorFour = (0,0,0);
+
 
 void setup() {
 
+  Serial.begin(9600); // for troubleshooting
+  
   // setup for motor
   pinMode(enableB, OUTPUT);
   pinMode(pinB1, OUTPUT);
   pinMode(pinB2, OUTPUT);
+
+  // setup for LED
+  FastLED.setMaxPowerInVoltsAndMilliamps(VOLTS,MAX_MILLIAMPS); // Limit power output to LED strip
+  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS); // connect to LED strip
+  
   
   // setup for bounce
-  Serial.begin(9600); // for troubleshooting
-  bounceA.attach(limitSW, INPUT_PULLUP); //attach the limit switch to the bounce object
-  bounceA.interval(25); //polling interval for the bounce object
 
-  //bounceB.attach(); // attach a limit sw here for LEDs
-  //bounceB.interval(25);
+  bounceA.attach(limitSW, INPUT_PULLUP); //for the motor reverse limit switches
+  bounceA.interval(25);
+  radarbounce1.attach(limitSW1, INPUT_PULLUP); // for LED limit switch 1
+  radarbounce1.interval(5);
+  radarbounce2.attach(limitSW2, INPUT_PULLUP); // for LED limit switch 2
+  radarbounce2.interval(5);
+  radarbounce3.attach(limitSW3, INPUT_PULLUP); // for LED limit switch 3
+  radarbounce3.interval(5);
 
   digitalWrite(enableB, HIGH); // motor on
 }
 
+
 void loop()
 {
-  bounceA.update(); // 
-  //bounceB.update();
+  // Change brightness with potentiometer 
+  brightness(); // set brightness to pot value
+  motorControl(); // when a motor limit switch is triggered, the motor will reverse
+  radarLEDs(); // when one of the LED limit switches are triggered, the corresponding track will illuminate
+}
 
+
+void brightness(){
+  uint16_t potRead = analogRead(POT_PIN); // read pot
+  uint16_t brightness = map(potRead, 0, 1023, 0, 200); // map pot and output value that fastLED can use
+  FastLED.setBrightness(brightness); // control brightness by pot to allow field adjustment
+}
+
+void motorControl() {
+  bounceA.update(); // update bounce for motor limit sw 
   if (bounceA.fell()){
     buttonState = !buttonState;
     Serial.println("Button Pressed");
     if (buttonState == true){
-      Serial.println(buttonState);
       Serial.println("Bounce says - CW");
-      motorControl();
+      Serial.println("Motor says - CW");
+      digitalWrite(pinB1, HIGH);
+      digitalWrite(pinB2, LOW);
     }
     else if (buttonState == false){
-      Serial.println(buttonState);
       Serial.println("Bounce says - CCW");
-      motorControl();
+      Serial.println("Motor says - CCW");
+      digitalWrite(pinB1, LOW);
+      digitalWrite(pinB2, HIGH);;
     }
     else {
       Serial.print("bounce says - borken");
@@ -52,21 +100,99 @@ void loop()
   }
 }
 
-void motorControl() {
+void radarLEDs(){
+  radarbounce1.update(); //update bounce for LED limit sw
+  radarbounce2.update();
+  radarbounce3.update();
   
-  if (buttonState == true) {
-    Serial.println(buttonState);
-    Serial.println("Motor says - CW");
-    digitalWrite(pinB1, HIGH);
-    digitalWrite(pinB2, LOW);
+  int value1 = radarbounce1.read();
+  int value2 = radarbounce2.read();
+  int value3 = radarbounce3.read();
+  
+  
+  if(value1 == LOW && value2 == LOW && value3 == LOW){
+    clearLEDs();
   }
-  else if (buttonState == false){
-    Serial.println(buttonState);
-    Serial.println("Motor says - CCW");
-    digitalWrite(pinB1, LOW);
-    digitalWrite(pinB2, HIGH);
+  else if (value1 == HIGH) {
+    radarOne();
+    Serial.println("Radar one running");
+    }
+  else if(value2 == HIGH){
+    radarTwo();
+    Serial.println("Radar two running");
   }
-  else{
-    Serial.println("Motor says - borken");
+  else if(value3 == HIGH){
+    radarThree();
+    Serial.println("Radar three running");
+  }
+}
+
+void clearLEDs(){
+//  CRGBSet all(leds(0,41));
+//  all = CRGB::Red;
+  FastLED.clear();
+  FastLED.show();
+}
+
+void radarOne() {
+  CRGBSet partA(leds(0,4));
+  CRGBSet partB(leds(5,8));
+  CRGBSet partC(leds(9,11));
+  CRGBSet partD(leds(12,13));
+  
+  partA = colorOne;
+  partB = colorTwo;
+  partC = colorThree;
+  partD = colorFour;
+  FastLED.show();
+
+  EVERY_N_MILLISECONDS(500){ //will loop through the parts and asign white to one every 500 milliseconds
+    CRGB temp = colorFour;
+    colorFour = colorThree;
+    colorThree = colorTwo;
+    colorTwo = colorOne;
+    colorOne = temp;
+    }
+}
+
+void radarTwo() {
+  CRGBSet partA(leds(14,18));
+  CRGBSet partB(leds(19,22));
+  CRGBSet partC(leds(23,25));
+  CRGBSet partD(leds(26,27));
+  
+  partA = colorOne;
+  partB = colorTwo;
+  partC = colorThree;
+  partD = colorFour;
+  FastLED.show();
+
+  EVERY_N_MILLISECONDS(500){ //will loop through the parts and asign white to one every 500 milliseconds
+    CRGB temp = colorFour;
+    colorFour = colorThree;
+    colorThree = colorTwo;
+    colorTwo = colorOne;
+    colorOne = temp;
+  }
+}
+
+void radarThree() {
+  CRGBSet partA(leds(28,32));
+  CRGBSet partB(leds(33,36));
+  CRGBSet partC(leds(37,39));
+  CRGBSet partD(leds(40,41));
+  
+  partA = colorOne;
+  partB = colorTwo;
+  partC = colorThree;
+  partD = colorFour;
+  FastLED.show();
+
+  EVERY_N_MILLISECONDS(500){ //will loop through the parts and asign white to one every 500 milliseconds
+    CRGB temp = colorFour;
+    colorFour = colorThree;
+    colorThree = colorTwo;
+    colorTwo = colorOne;
+    colorOne = temp;
   }
 }
